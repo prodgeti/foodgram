@@ -1,15 +1,7 @@
 from django.contrib import admin
-
-from recipes.models import (
-    Favorite,
-    Ingredient,
-    Recipe,
-    RecipeIngredient,
-    ShoppingCart,
-    Tag,
-)
-
 from foodgram_backend.constants import MIN_AMOUNT
+from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
+                            ShoppingCart, Tag)
 
 admin.site.empty_value_display = 'Null'
 

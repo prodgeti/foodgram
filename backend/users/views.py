@@ -1,3 +1,4 @@
+from api.pagination import LimitPagination
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from djoser.views import UserViewSet
@@ -5,16 +6,9 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
-
-from api.pagination import LimitPagination
-from users.serializers import (
-    CustomUserProfileSerializer,
-    SubscribeSerializer,
-    SubscribeGetSerializer,
-    AvatarSerializer,
-)
 from users.models import Subscription
+from users.serializers import (AvatarSerializer, CustomUserProfileSerializer,
+                               SubscribeGetSerializer, SubscribeSerializer)
 
 User = get_user_model()
 

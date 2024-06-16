@@ -1,36 +1,28 @@
-import base62
 import os
 from io import BytesIO
 
+import base62
+from api.filters import IngredientFilter, RecipeFilter
+from api.pagination import LimitPagination
+from api.permissions import IsAuthorAdminOrReadOnly
+from api.serializers import (FavoritesSerializer, IngredientSerializer,
+                             RecipeCreateUpdateSerializer, RecipeIngredient,
+                             RecipeSerializer, ShoppingCartSerializer,
+                             TagSerializer)
 from django.contrib.auth import get_user_model
-
 from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
+from recipes.models import Ingredient, Recipe, Tag
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.permissions import SAFE_METHODS, AllowAny
 from rest_framework.response import Response
-
-from api.filters import IngredientFilter, RecipeFilter
-from api.pagination import LimitPagination
-from api.permissions import IsAuthorAdminOrReadOnly
-from api.serializers import (
-    FavoritesSerializer,
-    IngredientSerializer,
-    RecipeCreateUpdateSerializer,
-    RecipeIngredient,
-    RecipeSerializer,
-    ShoppingCartSerializer,
-    TagSerializer,
-)
-from recipes.models import Ingredient, Recipe, Tag
-
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
 
 User = get_user_model()
 

@@ -15,8 +15,7 @@ services:
     restart: on-failure
   
   backend:
-    container_name: foodgram-back
-    media: prodgeti/foodgram_backend:latest
+    image: prodgeti/foodgram_backend:latest
     env_file: .env
     depends_on:
       - db
@@ -25,15 +24,14 @@ services:
       - media:/app/media
   
   frontend:
-    container_name: foodgram-front
     env_file: .env
-    media: prodgeti/foodgram_frontend:latest
+    image: prodgeti/foodgram_frontend:latest
     command: cp -r /app/build/. /frontend_static/
     volumes:
       - static:/frontend_static
   
   nginx:
-    media: prodgeti/foodgram_nginx:latest
+    image: prodgeti/foodgram_nginx:latest
     ports:
       - 8000:80
     volumes:

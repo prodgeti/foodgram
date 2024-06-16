@@ -22,7 +22,7 @@ ALLOWED_HOSTS = (
     .split(',')
 )
 
-CSRF_TRUSTED_ORIGINS = ['https://foodgramdr.hopto.org']
+CSRF_TRUSTED_ORIGINS = ['https://foodgram-prodgeti.zapto.org']
 
 INSTALLED_APPS = [
     'django.contrib.admin',

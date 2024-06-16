@@ -16,7 +16,7 @@ admin.site.empty_value_display = 'Null'
 
 class RecipeIngredientInline(admin.TabularInline):
     model = RecipeIngredient
-    extra = 2
+    extra = 1
     min_num = MIN_AMOUNT
 
 
@@ -28,8 +28,6 @@ class RecipeAdmin(admin.ModelAdmin):
         'image',
         'text',
         'pub_date',
-        'get_tag',
-        'cnt_favoties',
     )
     list_editable = (
         'name',
@@ -42,13 +40,9 @@ class RecipeAdmin(admin.ModelAdmin):
 
     inlines = (RecipeIngredientInline,)
 
-    @admin.display(description='Тэг')
-    def get_tag(self, obj):
-        return ', '.join(tag.name for tag in obj.tags.all())
-
     @admin.display(description='Количество в избранном')
-    def cnt_favoties(self, obj):
-        return obj.favorites.count()
+    def in_favorites(self, obj):
+        return Favorite.objects.filter(recipe=obj).count()
 
 
 @admin.register(Favorite)

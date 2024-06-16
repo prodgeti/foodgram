@@ -1,19 +1,14 @@
 from django.contrib.auth import get_user_model
 from drf_extra_fields.fields import Base64ImageField
-
-from djoser.serializers import UserSerializer as MeUS
-
+from djoser.serializers import UserSerializer
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
-
 from users.models import Subscription
 
 User = get_user_model()
 
 
 class AvatarSerializer(serializers.ModelSerializer):
-    """Сериализатор для аватара."""
-
     avatar = Base64ImageField()
 
     class Meta:
@@ -21,15 +16,12 @@ class AvatarSerializer(serializers.ModelSerializer):
         fields = ('avatar',)
 
     def validate(self, data):
-        avatar = data.get('avatar', None)
-        if not avatar:
-            raise serializers.ValidationError('Прекрепите аватар.')
+        if 'avatar' not in data:
+            raise serializers.ValidationError('Аватар не добавлен.')
         return data
 
 
-class CustomUserProfileSerializer(MeUS):
-    """Сериализатор для текущего пользователя. Унаследован от Djoser."""
-
+class CustomUserProfileSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
     avatar = Base64ImageField()
 
@@ -45,55 +37,67 @@ class CustomUserProfileSerializer(MeUS):
             'avatar',
         )
 
-    def get_is_subscribed(self, obj: User):
-        """Проверяет статус подписки.
-        Args:
-            obj (User): исходный пользователь.
-        Returns:
-            bool: true or false.
-        """
-        request = self.context.get('request')
-        return (
-            bool(request)
-            and request.user.is_authenticated
-            and Subscription.objects.filter(
-                user=request.user,
-                following=obj
-            ).exists()
-            and not obj == request.user
+    def get_is_subscribed(self, obj):
+        return self._check_subscription_status(
+            self.context.get('request'), obj
         )
+
+    def _check_subscription_status(self, request, obj):
+        if not request or not request.user.is_authenticated:
+            return False
+        if obj == request.user:
+            return False
+        return Subscription.objects.filter(
+            follower=request.user,
+            publisher=obj
+        ).exists()
 
 
 class SubscribeSerializer(serializers.ModelSerializer):
-    """Сериализатор для подписки."""
+
+    follower = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all()
+    )
+    publisher = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all()
+    )
 
     class Meta:
         model = Subscription
-        fields = ('user', 'following')
+        fields = ('follower', 'publisher')
         validators = [
             UniqueTogetherValidator(
                 queryset=Subscription.objects.all(),
-                fields=['user', 'following'],
+                fields=['follower', 'publisher'],
             )
         ]
 
     def to_representation(self, instance):
-        return SubscribeGetSerializer(
-            instance.following, context={
-                'request': self.context.get('request')
-            }
-        ).data
+        serializer = SubscribeGetSerializer(
+            instance.publisher,
+            context={'request': self.context.get('request')}
+        )
+        return serializer.data
 
-    def validate_following(self, val):
-        if self.context['request'].user == val:
+    def validate(self, data):
+        request = self.context.get('request')
+        follower = request.user
+        publisher = data['publisher']
+
+        if follower == publisher:
             raise serializers.ValidationError('Нельзя подписаться на себя.')
-        return val
+
+        if Subscription.objects.filter(
+            follower=follower, publisher=publisher
+        ).exists():
+            raise serializers.ValidationError(
+                'Вы уже подписаны на этого пользователя.'
+            )
+
+        return data
 
 
 class SubscribeGetSerializer(CustomUserProfileSerializer):
-    """Сериализатор для отображения всех подписанных пользователей,
-    их рецептов, количества рецептов."""
-
     recipes_count = serializers.SerializerMethodField()
     recipes = serializers.SerializerMethodField()
 
@@ -103,26 +107,22 @@ class SubscribeGetSerializer(CustomUserProfileSerializer):
             'recipes_count',
         )
 
-    def get_recipes_count(self, obj: User):
-        """Подсчет количества рецептов."""
+    def get_recipes_count(self, obj):
         return obj.recipes.count()
 
-    def get_recipes(self, obj: User):
-        """Получает список репептов пользователя.
-        Args:
-            recipe (User): исходный пользователь.
-
-        Returns:
-            QuerySet[dict]: Список рецептов пользователя.
-        """
+    def get_recipes(self, obj):
         from api.serializers import RecipeShortSerializer
-
-        request = self.context.get('request')
-        recipes = obj.recipes.all()
-        recipes_limit = request.query_params.get('recipes_limit', 0)
-        try:
-            recipes = recipes[: int(recipes_limit)]
-        except (TypeError, ValueError):
-            pass
+        recipes = self._get_limited_recipes(obj, self.context.get('request'))
         serializer = RecipeShortSerializer(recipes, many=True, read_only=True)
         return serializer.data
+
+    def _get_limited_recipes(self, obj, request):
+        recipes = obj.recipes.all()
+        recipes_limit = request.query_params.get('recipes_limit')
+        if recipes_limit is not None:
+            try:
+                recipes_limit = int(recipes_limit)
+                if recipes_limit > 0:
+                    return recipes[:recipes_limit]
+            except (TypeError, ValueError):
+                pass

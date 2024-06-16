@@ -6,41 +6,21 @@ from foodgram_backend import constants
 
 
 class CustomUser(AbstractUser):
-    """
-    Модель пользователя.
+    """Модель пользователя."""
 
-    Поля:
-    ---------
-    first_name (str): Имя пользователя.
-    last_name (str): Фамилия пользователя.
-    username (str): Имя пользователя для входа.
-    email (str): Адрес электронной почты пользователя.
-    аватар (img): Аватар пользователя.
-
-    Мета:
-    -----
-        verbose_name (str): удобочитаемое имя модели.
-        порядок (список): порядок модели по умолчанию.
-
-    Методы:
-    -------
-    __str__(): возвращает имя пользователя в виде строки.
-    """
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ('username', 'first_name', 'last_name')
 
     first_name = models.CharField(
-        max_length=constants.FIRST_NAME_MAX_LENGTH,
+        max_length=constants.FIRST_NAME_LENGTH,
         verbose_name='Имя',
-        help_text='Введите имя пользователя'
     )
     last_name = models.CharField(
-        max_length=constants.LAST_NAME_MAX_LENGTH,
+        max_length=constants.LAST_NAME_LENGTH,
         verbose_name='Фамилия',
-        help_text='Введите фамилию пользователя'
     )
     username = models.CharField(
-        max_length=constants.USERNAME_MAX_LENGTH,
+        max_length=constants.USERNAME_LENGTH,
         unique=True,
         verbose_name='Логин',
         help_text='Введите логин пользователя',
@@ -71,40 +51,37 @@ class CustomUser(AbstractUser):
 
 
 class Subscription(models.Model):
-    """
-    Модель для хранения информации о подписках.
+    """Модель для хранения информации о подписках."""
 
-    Поля:
-    - user (User): Пользователь (связь с моделью User).
-    - following (User): Подписчик (связь с моделью User).
-    """
-
-    user = models.ForeignKey(
+    follower = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
         related_name='follower',
-        verbose_name='Пользователь',
+        verbose_name='Подписчик',
+
     )
-    following = models.ForeignKey(
+    publisher = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
         related_name='following',
-        verbose_name='Подписчик',
+        verbose_name='Автор рецепта',
+
     )
 
     class Meta:
-        verbose_name = 'Subscription'
-        verbose_name_plural = 'Subscriptions'
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
         constraints = [
             models.UniqueConstraint(
-                fields=['user', 'following'], name='unique_user_following'
+                fields=['follower', 'publisher'], name='unique_following'
             ),
             models.CheckConstraint(
-                check=models.Q(
-                    user=models.F('user')),
-                name='prevent_self_follow'
+                check=~models.Q(follower=models.F('publisher')),
+                name='self-subscription'
             ),
         ]
 
     def __str__(self):
-        return f'Подписка {self.following.username} на {self.user.username}'
+        return (
+            f'Подписка {self.follower.username} на {self.publisher.username}'
+        )

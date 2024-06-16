@@ -2,8 +2,6 @@ from django.contrib import admin
 
 from users.models import CustomUser, Subscription
 
-admin.site.empty_value_display = "Null"
-
 
 @admin.register(CustomUser)
 class CustomUserModel(admin.ModelAdmin):
@@ -25,6 +23,6 @@ class CustomUserModel(admin.ModelAdmin):
 
 @admin.register(Subscription)
 class Subscription(admin.ModelAdmin):
-    list_display = ("user", "following")
-    list_editable = ("following",)
-    list_display_links = ("user",)
+    list_display = ("follower", "publisher")
+    list_editable = ("publisher",)
+    list_display_links = ("follower",)

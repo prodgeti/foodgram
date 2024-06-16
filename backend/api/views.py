@@ -1,18 +1,17 @@
+import base62
+import os
+from io import BytesIO
+
 from django.contrib.auth import get_user_model
 
 from django.db.models import Sum
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.permissions import SAFE_METHODS, AllowAny
 from rest_framework.response import Response
-from rest_framework.status import (
-    HTTP_400_BAD_REQUEST,
-    HTTP_204_NO_CONTENT,
-    HTTP_200_OK
-)
 
 from api.filters import IngredientFilter, RecipeFilter
 from api.pagination import LimitPagination
@@ -20,25 +19,27 @@ from api.permissions import IsAuthorAdminOrReadOnly
 from api.serializers import (
     FavoritesSerializer,
     IngredientSerializer,
-    RecipeCreateUpdateDeleteSerializer,
+    RecipeCreateUpdateSerializer,
     RecipeIngredient,
     RecipeSerializer,
     ShoppingCartSerializer,
-    ShortLinkSerializer,
     TagSerializer,
 )
-from recipes.models import Ingredient, Link, Recipe, Tag
+from recipes.models import Ingredient, Recipe, Tag
+
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
 
 User = get_user_model()
 
 
-class IngredientListDetailViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet для получение списка ингредиентов или одного ингредиента по id.
-    Возможен поиск по имени.
-    """
+class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet для получения ингредиентов."""
 
-    serializer_class = IngredientSerializer
     queryset = Ingredient.objects.all()
+    serializer_class = IngredientSerializer
     filter_backends = (IngredientFilter,)
     search_fields = ('^name',)
     permission_classes = (AllowAny,)
@@ -46,80 +47,76 @@ class IngredientListDetailViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet для получение списка тэгов или одного тэга по id."""
+    """ViewSet для получения тэгов."""
 
-    serializer_class = TagSerializer
     queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    permission_classes = (AllowAny,)
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    """ViewSet для рецептов.
-    Создание, редактирование, получение списка по фильтрам,
-    добавление/удаление в избранное и список покупок.
-    Отправка текстового файла со списком покупок.
-    """
+    """ViewSet для рецептов."""
 
-    serializer_class = RecipeSerializer
     queryset = Recipe.objects.all()
-    pagination_class = LimitPagination
+    serializer_class = RecipeSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
+    pagination_class = LimitPagination
     permission_classes = (IsAuthorAdminOrReadOnly,)
 
     def get_serializer_class(self):
         if self.request.method in SAFE_METHODS:
             return RecipeSerializer
-        return RecipeCreateUpdateDeleteSerializer
+        return RecipeCreateUpdateSerializer
 
-    def __add__recipe(self, request, pk, serializer_class):
-        """Добавление рецептов в список покупок | избранное."""
+    def add_recipe(self, request, pk, serializer_class):
+        """Добавление рецепта в избранное или в корзину покупок."""
+        recipe = get_object_or_404(self.queryset, pk=pk)
         serializer = serializer_class(
-            data={'user': request.user.id, 'recipe': pk},
-            context={'request': request},
+            data={'recipe': recipe.pk, 'user': request.user.pk},
+            context={'request': request}
         )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def __delete_recipe(self, request, pk, related_name):
-        """Удаление рецептов из списка покупок | избранного."""
+    def delete_recipe(self, request, pk, related_name):
+        """Удаление рецепта из избранного или из корзины покупок."""
 
         recipe = get_object_or_404(Recipe, id=pk)
-        cur_recipe_deleted, _ = (
-            getattr(request.user, related_name).filter(recipe=recipe).delete()
-        )
-        return (
-            Response(
+        related_manager = getattr(request.user, related_name)
+        deleted, _ = related_manager.filter(recipe=recipe).delete()
+        if not deleted:
+            return Response(
                 'Рецепт отсутствует в списке.',
-                status=HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST
             )
-            if not cur_recipe_deleted
-            else Response(status=HTTP_204_NO_CONTENT)
-        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'], url_path='favorite')
     def favorite(self, request, pk):
-        """Функция обработки списка избранного. Добавление рецептов."""
-        return self.__add__recipe(request, pk, FavoritesSerializer)
+        """Добавление рецепта в избранное."""
+        return self.add_recipe(request, pk, FavoritesSerializer)
 
     @favorite.mapping.delete
     def delete_favorite(self, request, pk):
-        """Функция обработки списка избранного. Удаление рецептов."""
-        return self.__delete_recipe(request, pk, 'favorites')
+        """Удаление рецепта из избранного."""
+        return self.delete_recipe(request, pk, 'favorites')
 
     @action(detail=True, methods=['post'], url_path='shopping_cart')
     def shopping_cart(self, request, pk):
-        """Функция обработки списка покупок. Добавление рецептов."""
-        return self.__add__recipe(request, pk, ShoppingCartSerializer)
+        """Добавление рецепта в корзину покупок."""
+        return self.add_recipe(request, pk, ShoppingCartSerializer)
 
     @shopping_cart.mapping.delete
-    def delete_from_shopping_cart(self, request, pk):
-        """Функция обработки списка покупок. Удалениерецептов."""
-        return self.__delete_recipe(request, pk, 'shopping_cart')
+    def remove_from_shopping_cart(self, request, pk):
+        """Удаление рецепта из корзины покупок."""
+        return self.delete_recipe(request, pk, 'shopping_cart')
 
     @action(detail=False, methods=['get'], url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
-        """Скачивает файл со списком покупок.
+        """Скачивает файл со списком покупок в формате PDF.
         Считает сумму ингредиентов в рецептах.
         """
         user = request.user
@@ -128,34 +125,66 @@ class RecipeViewSet(viewsets.ModelViewSet):
             .values('ingredient__name', 'ingredient__measurement_unit')
             .annotate(amount=Sum('amount'))
         )
-        shopping_list = 'Список покупок\n'
+        filename = f'{user.username}_shopping_list'
+
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'attachment; filename={filename}.txt'
+        )
+
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+
+        pdfmetrics.registerFont(TTFont('LiberationSerif', os.path.join(
+            'data', 'LiberationSerif-Regular.ttf'
+        )))
+        p.setFont('LiberationSerif', 12)
+
+        p.drawString(100, 750, 'Список покупок')
+        y = 700
+
         for ingredient in ingredients:
-            shopping_list += ''.join(
+            p.drawString(
+                100,
+                y,
                 f'- {ingredient["ingredient__name"]} '
-                f'({ingredient["ingredient__measurement_unit"]})'
-                f' - {ingredient["amount"]}\n'
+                f'({ingredient["ingredient__measurement_unit"]}) - '
+                f'{ingredient["amount"]}'
             )
-        filename = f'{user.username}_shopping_list.txt'
-        response = HttpResponse(shopping_list, content_type='text/plain')
-        response[
-            'Content-Disposition'
-        ] = f'attachment; filename={filename}.txt'
+            y -= 20
+            if y < 40:
+                p.showPage()
+                y = 700
+                p.setFont('LiberationSerif', 12)
+
+        p.showPage()
+        p.save()
+
+        buffer.seek(0)
+        response.write(buffer.read())
         return response
 
     @action(detail=True, methods=['get'], url_path='get-link')
-    def get_short_link(self, request, pk):
-        """Получение короткой ссылки для репепта."""
-        serializer = ShortLinkSerializer(
-            data={'pk': pk},
-            context={'request': request}
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=HTTP_200_OK)
+    def get_link(self, request, id=None):
+        """Создает короткую ссылку для рецепта на основе его ID."""
+        if not id:
+            return Response(
+                'ID рецепта не указан.',
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        short_id = base62.encode(int(id))
+        short_link = request.build_absolute_uri(f'/s/{short_id}')
+        return Response({'short-link': short_link}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
-def redirect_to_recipe(request, short_code) -> HttpResponseRedirect:
-    """При переходе по короткой ссылке перенаправляет на страницу рецепта."""
-    link = get_object_or_404(Link, short_code=short_code)
-    return redirect(link.original_link)
+def redirect_short_link(request, short_id):
+    """Перенаправляет короткую ссылку на страницу рецепта."""
+    try:
+        recipe_id = base62.decode(short_id)
+        return redirect(f'/recipes/{recipe_id}/')
+    except ValueError:
+        return Response(
+            "Некорректная короткая ссылка.",
+            status=status.HTTP_400_BAD_REQUEST
+        )

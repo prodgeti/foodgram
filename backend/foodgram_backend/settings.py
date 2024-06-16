@@ -1,16 +1,26 @@
-
+import os
 from pathlib import Path
 
+from django.core.management.utils import get_random_secret_key
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-SECRET_KEY = 'django-insecure-0(23(l^ytn7$d-g-b)$7ki37zcl%0lsv0@+vi!+_%fci^u*0il'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', get_random_secret_key())
 
 
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*']
+DEFAULT_ALLOWED_HOSTS = 'localhost, 127.0.0.1'
+ALLOWED_HOSTS = (
+    os.getenv('ALLOWED_HOSTS', DEFAULT_ALLOWED_HOSTS)
+    .strip()
+    .replace(' ', '')
+    .split(',')
+)
 
 
 INSTALLED_APPS = [
@@ -62,12 +72,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'foodgram_backend.wsgi.application'
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if os.environ.get('DJANGO_SERVER_TYPE') == 'production':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('POSTGRES_DB', 'django'),
+            'USER': os.environ.get('POSTGRES_USER', 'django'),
+            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+            'HOST': os.environ.get('DB_HOST', ''),
+            'PORT': os.environ.get('DB_PORT', 5432),
+        }
     }
-}
+else:
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -86,7 +109,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru-ru'
 
 TIME_ZONE = 'UTC'
 
@@ -97,35 +120,35 @@ USE_L10N = True
 USE_TZ = True
 
 
-STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "backend_static/static"
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'collected_static'
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
-AUTH_USER_MODEL = "users.CustomUser"
+AUTH_USER_MODEL = 'users.CustomUser'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
     ],
 }
 
 DJOSER = {
-    "LOGIN_FIELD": "email",
-    "HIDE_USERS": False,
-    "SERIALIZERS": {
-        "current_user": "users.serializers.CustomUserProfileSerializer",
-        "user": "users.serializers.CustomUserProfileSerializer",
+    'LOGIN_FIELD': 'email',
+    'HIDE_USERS': False,
+    'SERIALIZERS': {
+        'current_user': 'users.serializers.CustomUserProfileSerializer',
+        'user': 'users.serializers.CustomUserProfileSerializer',
     },
-    "PERMISSIONS": {
-        "user_list": ["rest_framework.permissions.AllowAny"],
-        "user": ["rest_framework.permissions.AllowAny"],
+    'PERMISSIONS': {
+        'user_list': ['rest_framework.permissions.AllowAny'],
+        'user': ['rest_framework.permissions.AllowAny'],
     },
 }

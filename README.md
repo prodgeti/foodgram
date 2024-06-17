@@ -14,7 +14,7 @@
     ```
 2. Создайте файл .env и заполните его своими данными.
 
-3. Находясь в папке infra, выполните команду ```docker-compose up```  
+3. Находясь в папке foodgram, выполните команду ```docker-compose up```  
 Документация к API доступна по адресу http://localhost/api/docs/ 
 
 ### Создание Docker-образов <a id=docker></a>
@@ -25,7 +25,9 @@
     cd frontend
     docker build -t username/foodgram_frontend .
     cd ../backend
-    docker build -t username/foodgram_backend . 
+    docker build -t username/foodgram_backend .
+    cd ../backend
+    docker build -t username/foodgram_nginx . 
     ```
 
 2. Загрузите образы на DockerHub:
@@ -33,6 +35,7 @@
     ```bash
     docker push username/foodgram_frontend
     docker push username/foodgram_backend
+    docker push username/foodgram_nginx
     ```
 
 ### Деплой на сервере <a id=deploy></a>

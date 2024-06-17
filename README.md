@@ -10,7 +10,7 @@
     git clone https://github.com/prodgeti/foodgram.git
     ```
     ```bash
-    cd foodgram-project-react
+    cd foodgram
     ```
 2. Создайте файл .env и заполните его своими данными. Перечень данных указан в корневой директории проекта в файле .env.example.
 

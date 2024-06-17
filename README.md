@@ -7,7 +7,7 @@
 1. Клонируйте репозиторий на свой компьютер:
 
     ```bash
-    git clone https://github.com/prodgeti/foodgram-project-react.git
+    git clone https://github.com/prodgeti/foodgram.git
     ```
     ```bash
     cd foodgram-project-react

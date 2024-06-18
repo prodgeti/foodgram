@@ -1,7 +1,13 @@
-import os
-from io import BytesIO
-
 import base62
+from django.contrib.auth import get_user_model
+from django.db.models import Sum
+from django.shortcuts import get_object_or_404, redirect
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view
+from rest_framework.permissions import SAFE_METHODS, AllowAny
+from rest_framework.response import Response
+
 from api.filters import IngredientFilter, RecipeFilter
 from api.pagination import LimitPagination
 from api.permissions import IsAuthorAdminOrReadOnly
@@ -9,20 +15,9 @@ from api.serializers import (FavoritesSerializer, IngredientSerializer,
                              RecipeCreateUpdateSerializer, RecipeIngredient,
                              RecipeSerializer, ShoppingCartSerializer,
                              TagSerializer)
-from django.contrib.auth import get_user_model
-from django.db.models import Sum
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
-from django_filters.rest_framework import DjangoFilterBackend
 from recipes.models import Ingredient, Recipe, Tag
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfgen import canvas
-from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view
-from rest_framework.permissions import SAFE_METHODS, AllowAny
-from rest_framework.response import Response
+
+from .utils import create_shopping_list_pdf
 
 User = get_user_model()
 
@@ -108,52 +103,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
-        """Скачивает файл со списком покупок в формате PDF.
-        Считает сумму ингредиентов в рецептах.
-        """
         user = request.user
         ingredients = (
             RecipeIngredient.objects.filter(recipe__shopping_cart__user=user)
             .values('ingredient__name', 'ingredient__measurement_unit')
             .annotate(amount=Sum('amount'))
         )
-        filename = f'{user.username}_shopping_list'
 
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'attachment; filename={filename}.txt'
-        )
-
-        buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=letter)
-
-        pdfmetrics.registerFont(TTFont('LiberationSerif', os.path.join(
-            'data', 'LiberationSerif-Regular.ttf'
-        )))
-        p.setFont('LiberationSerif', 12)
-
-        p.drawString(100, 750, 'Список покупок')
-        y = 700
-
-        for ingredient in ingredients:
-            p.drawString(
-                100,
-                y,
-                f'- {ingredient["ingredient__name"]} '
-                f'({ingredient["ingredient__measurement_unit"]}) - '
-                f'{ingredient["amount"]}'
-            )
-            y -= 20
-            if y < 40:
-                p.showPage()
-                y = 700
-                p.setFont('LiberationSerif', 12)
-
-        p.showPage()
-        p.save()
-
-        buffer.seek(0)
-        response.write(buffer.read())
+        response = create_shopping_list_pdf(user, ingredients)
         return response
 
     @action(detail=True, methods=['get'], url_path='get-link')

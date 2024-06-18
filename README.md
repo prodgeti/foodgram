@@ -1,16 +1,16 @@
 Проект «Фудграм» — сайт, на котором пользователи могут публиковать рецепты, добавлять чужие рецепты в избранное и подписываться на публикации других авторов. Пользователям сайта также доступен сервис «Список покупок». Он позволит создавать список продуктов, которые нужно купить для приготовления выбранных блюд. 
 
-Проект доступен по [адресу](https://recipes.ddns.net)   
+Проект доступен по [адресу](https://foodgram-prodgeti.zapto.org)   
 
 ## Установка <a id=run></a>
 
 1. Клонируйте репозиторий на свой компьютер:
 
     ```bash
-    git clone https://github.com/devlili/foodgram-project-react.git
+    git clone https://github.com/prodgeti/foodgram.git
     ```
     ```bash
-    cd foodgram-project-react
+    cd foodgram
     ```
 2. Создайте файл .env и заполните его своими данными. Перечень данных указан в корневой директории проекта в файле .env.example.
 
@@ -25,7 +25,9 @@
     cd frontend
     docker build -t username/foodgram_frontend .
     cd ../backend
-    docker build -t username/foodgram_backend . 
+    docker build -t username/foodgram_backend .
+    cd ../nginx
+    docker build -t username/foodgram_nginx . 
     ```
 
 2. Загрузите образы на DockerHub:
@@ -33,6 +35,7 @@
     ```bash
     docker push username/foodgram_frontend
     docker push username/foodgram_backend
+    docker push username/foodgram_nginx
     ```
 
 ### Деплой на сервере <a id=deploy></a>

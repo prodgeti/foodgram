@@ -1,11 +1,10 @@
-from django.contrib.auth import get_user_model
+from django.db import transaction
 from drf_extra_fields.fields import Base64ImageField
+from rest_framework import serializers
+
 from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                             ShoppingCart, Tag)
-from rest_framework import serializers
 from users.serializers import CustomUserProfileSerializer
-
-User = get_user_model()
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -68,11 +67,11 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def get_is_favorited(self, obj):
         request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return Favorite.objects.filter(
-                user=request.user, recipe=obj
-            ).exists()
-        return False
+        return (
+            request
+            and request.user.is_authenticated
+            and Favorite.objects.filter(user=request.user, recipe=obj).exists()
+        )
 
     def get_is_in_shopping_cart(self, obj):
         user = self.context['request'].user
@@ -160,29 +159,26 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
             ) for ingredient in ingredients
         ])
 
+    @transaction.atomic
     def create(self, validated_data):
         tags_data = validated_data.pop('tags')
         ingredients_data = validated_data.pop('ingredients')
-        recipe = Recipe.objects.create(
-            author=self.context['request'].user, **validated_data
-        )
+        validated_data['author'] = self.context['request'].user
+        recipe = super().create(validated_data)
         self.add_tags_ingredients(recipe, tags_data, ingredients_data)
         return recipe
 
-    def update(self, instance, validated):
-        instance.name = validated.get('name', instance.name)
-        if 'image' in validated:
-            instance.image = validated.pop('image')
-        instance.cooking_time = validated.get(
-            'cooking_time', instance.cooking_time
-        )
-        instance.text = validated.get('text', instance.text)
-        tags = validated.pop('tags')
-        ingredients = validated.pop('ingredients')
-        instance.ingredients.clear()
-        instance.tags.clear()
-        self.add_tags_ingredients(instance, tags, ingredients)
-        super().update(instance, validated)
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        tags = validated_data.pop('tags', None)
+        ingredients = validated_data.pop('ingredients', None)
+        instance = super().update(instance, validated_data)
+        if tags is not None:
+            instance.tags.clear()
+            self.add_tags_ingredients(instance, tags, [])
+        if ingredients is not None:
+            instance.ingredients.clear()
+            self.add_tags_ingredients(instance, [], ingredients)
         return instance
 
 

@@ -25,7 +25,9 @@
     cd frontend
     docker build -t username/foodgram_frontend .
     cd ../backend
-    docker build -t username/foodgram_backend . 
+    docker build -t username/foodgram_backend .
+    cd ../nginx
+    docker build -t username/foodgram_nginx .
     ```
 
 2. Загрузите образы на DockerHub:
